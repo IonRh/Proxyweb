@@ -15,10 +15,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# 添加 Google Chrome 源并安装
+# 添加 Google Chrome 源
 RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update && apt-get install -y --no-install-recommends google-chrome-stable \
+    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list
+
+# 更新源并安装 Google Chrome
+RUN apt-get update && apt-get install -y --no-install-recommends google-chrome-stable \
+    || { echo "Failed to install google-chrome-stable, trying alternative method"; \
+         wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+         && dpkg -i google-chrome-stable_current_amd64.deb \
+         && apt-get install -y -f \
+         && rm google-chrome-stable_current_amd64.deb; } \
     && rm -rf /var/lib/apt/lists/*
 
 # 安装 ChromeDriver
