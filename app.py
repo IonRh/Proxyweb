@@ -99,7 +99,7 @@ async def fetch_page(url: Optional[str] = None):
             )
             page_source = driver.page_source
 
-        return HTMLResponse(content=page_source)
+        return HTMLResponse(content=page_source, mimetype='text/html')
 
     except Exception as e:
         logger.error(f"请求处理错误: {str(e)}")
