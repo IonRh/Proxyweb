@@ -1,12 +1,14 @@
 import asyncio
 import logging
-import time
 from fastapi import FastAPI, HTTPException
 from starlette.responses import HTMLResponse
-from selenium import webdriver
+from seleniumwire import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
 
 app = FastAPI()
 
@@ -20,7 +22,7 @@ driver_lock = asyncio.Lock()
 
 def init_driver():
     """初始化 Chrome 浏览器，优化反爬设置"""
-    chrome_options = Options()
+    chrome_options = ChromeOptions()
     chrome_options.add_argument("--headless=new")  # 生产环境中启用 headless
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
@@ -31,7 +33,17 @@ def init_driver():
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
     
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    # Selenium-wire 特定的配置
+    seleniumwire_options = {
+        'suppress_connection_errors': True,  # 抑制连接错误
+        'connection_timeout': 10,  # 设置连接超时
+    }
+    
+    driver = webdriver.Chrome(
+        service=Service(ChromeDriverManager().install()),
+        options=chrome_options,
+        seleniumwire_options=seleniumwire_options
+    )
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     return driver
 
@@ -65,8 +77,13 @@ async def fetch_page(url: str | None = None):
 
         logger.info(f"正在访问: {url}")
         async with driver_lock:
+            # 清空之前的请求数据（selenium-wire 特性）
+            del driver.requests
             driver.get(url)
-            time.sleep(2)  # 视网站动态加载时间调整
+            # 显式等待页面 body 元素加载完成，最多等待 10 秒
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
             page_source = driver.page_source
 
         return HTMLResponse(content=page_source)
