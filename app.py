@@ -6,7 +6,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 import logging
 import random
-import time
+import platform
+import os
 
 app = Flask(__name__)
 
@@ -22,27 +23,32 @@ USER_AGENTS = [
 ]
 
 def init_driver():
-    """初始化 Chrome 浏览器，增强反爬设置"""
+    """初始化浏览器，动态选择 Chrome 或 Chromium"""
     chrome_options = Options()
     chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    # 随机用户代理
     chrome_options.add_argument(f"user-agent={random.choice(USER_AGENTS)}")
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
-    # 模拟真实浏览器行为
     chrome_options.add_argument("--disable-infobars")
     chrome_options.add_argument("--start-maximized")
     chrome_options.add_argument("--disable-extensions")
-    # 模拟人类行为参数
     chrome_options.add_argument("--window-size=1920,1080")
-    
+
+    # 检测架构并设置浏览器二进制文件
+    arch = platform.machine()
+    if arch != "x86_64":
+        # ARM 架构使用 Chromium
+        chrome_options.binary_location = "/usr/bin/chromium"
+    else:
+        # amd64 使用 Google Chrome
+        chrome_options.binary_location = "/usr/bin/google-chrome"
+
     driver = webdriver.Chrome(options=chrome_options)
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-    # 模拟人类鼠标移动
     driver.execute_script("""
         window.addEventListener('mousemove', function(e) {
             window._mouseX = e.clientX;
@@ -65,7 +71,6 @@ def fetch_page():
         driver = init_driver()
         logger.info(f"正在访问: {url}")
 
-        # 使用显式等待加载动态内容
         driver.get(url)
         try:
             WebDriverWait(driver, 10).until(
@@ -74,9 +79,8 @@ def fetch_page():
         except Exception as e:
             logger.warning(f"页面加载超时: {str(e)}")
 
-        # 模拟人类滚动行为
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(random.uniform(0.5, 1.5))  # 随机延迟
+        time.sleep(random.uniform(0.5, 1.5))
         driver.execute_script("window.scrollTo(0, 0);")
         
         page_source = driver.page_source
@@ -89,4 +93,4 @@ def fetch_page():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=false, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5000)
