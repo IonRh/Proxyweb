@@ -1,7 +1,11 @@
 from flask import Flask, request, jsonify, Response
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
 import logging
+import random
 import time
 
 app = Flask(__name__)
@@ -10,51 +14,72 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# 用户代理池
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/130.0",
+]
 
 def init_driver():
-    """初始化 Chrome 浏览器，优化反爬设置"""
+    """初始化 Chrome 浏览器，增强反爬设置"""
     chrome_options = Options()
-    # 可选启用 headless，视情况注释
-    chrome_options.add_argument("--headless=new")  # 新 headless 模式
+    chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    # 反爬措施
-    chrome_options.add_argument(
-        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36")
-    chrome_options.add_argument("--disable-blink-features=AutomationControlled")  # 隐藏自动化标志
+    # 随机用户代理
+    chrome_options.add_argument(f"user-agent={random.choice(USER_AGENTS)}")
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
-
+    # 模拟真实浏览器行为
+    chrome_options.add_argument("--disable-infobars")
+    chrome_options.add_argument("--start-maximized")
+    chrome_options.add_argument("--disable-extensions")
+    # 模拟人类行为参数
+    chrome_options.add_argument("--window-size=1920,1080")
+    
     driver = webdriver.Chrome(options=chrome_options)
-    # 移除 webdriver 属性
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+    # 模拟人类鼠标移动
+    driver.execute_script("""
+        window.addEventListener('mousemove', function(e) {
+            window._mouseX = e.clientX;
+            window._mouseY = e.clientY;
+        });
+    """)
     return driver
-
 
 @app.route('/fetch', methods=['GET'])
 def fetch_page():
     """处理 GET 请求，拼接 URL 并返回页面内容"""
     try:
-        # 获取 URL 参数
         url = request.args.get('url')
         if not url:
             return jsonify({"error": "URL 参数缺失"}), 400
 
-        # 确保 URL 包含协议
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
 
-        # 初始化浏览器
         driver = init_driver()
         logger.info(f"正在访问: {url}")
 
-        # 获取页面内容，添加延迟以确保动态内容加载
+        # 使用显式等待加载动态内容
         driver.get(url)
-        time.sleep(2)  # 视网站动态加载时间调整
-        page_source = driver.page_source
+        try:
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
+        except Exception as e:
+            logger.warning(f"页面加载超时: {str(e)}")
 
-        # 关闭浏览器
+        # 模拟人类滚动行为
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(random.uniform(0.5, 1.5))  # 随机延迟
+        driver.execute_script("window.scrollTo(0, 0);")
+        
+        page_source = driver.page_source
         driver.quit()
 
         return Response(page_source, mimetype='text/html')
@@ -63,6 +88,5 @@ def fetch_page():
         logger.error(f"错误: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=false, host='0.0.0.0', port=5000)
