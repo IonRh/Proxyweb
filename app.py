@@ -99,7 +99,7 @@ async def fetch_page(url: Optional[str] = None):
             )
             page_source = driver.page_source
 
-        return HTMLResponse(content=page_source, mimetype='text/html')
+        return HTMLResponse(content=page_source)
 
     except Exception as e:
         logger.error(f"请求处理错误: {str(e)}")
@@ -110,6 +110,61 @@ async def fetch_page(url: Optional[str] = None):
                 pass
             driver = init_driver()
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/fetchtxt")
+async def fetch_pagetxt(url: Optional[str] = None):
+    """处理 GET 请求，拼接 URL 并返回页面内容"""
+    global driver
+    try:
+        if not url:
+            raise HTTPException(status_code=400, detail="URL 参数缺失")
+
+        if not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+
+        logger.info(f"正在访问: {url}")
+        async with driver_lock:
+            # 清空之前的请求数据（selenium-wire 特性）
+            del driver.requests
+            driver.get(url)
+            # 显式等待页面 body 元素加载完成，最多等待 10 秒
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
+            page_source = driver.page_source
+
+        return Response(content=page_source, media_type="text/plain")
+    except Exception as e:
+        logger.error(f"错误: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.get("/fetchtmltxt")
+async def fetch_pagehtmltxt(url: Optional[str] = None):
+    """处理 GET 请求，拼接 URL 并返回页面内容"""
+    global driver
+    try:
+        if not url:
+            raise HTTPException(status_code=400, detail="URL 参数缺失")
+
+        if not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+
+        logger.info(f"正在访问: {url}")
+        async with driver_lock:
+            # 清空之前的请求数据（selenium-wire 特性）
+            del driver.requests
+            driver.get(url)
+            # 显式等待页面 body 元素加载完成，最多等待 10 秒
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
+            page_source = driver.page_source
+
+        return Response(content=page_source, mimetype='text/html')
+
+    except Exception as e:
+        logger.error(f"错误: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     import uvicorn
