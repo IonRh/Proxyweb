@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Optional
 from fastapi import FastAPI, HTTPException
 from starlette.responses import HTMLResponse
 from seleniumwire import webdriver
@@ -40,7 +41,6 @@ def init_driver():
             'connection_timeout': 10,  # 设置连接超时
         }
         
-        # 使用 ChromeDriverManager 自动匹配 Chromium 版本
         driver = webdriver.Chrome(
             service=Service(ChromeDriverManager(chrome_type="chromium").install()),
             options=chrome_options,
@@ -78,7 +78,7 @@ async def shutdown_event():
     await cleanup_driver()
 
 @app.get("/fetch")
-async def fetch_page(url: str | None = None):
+async def fetch_page(url: Optional[str] = None):
     """处理 GET 请求，拼接 URL 并返回页面内容"""
     global driver
     try:
