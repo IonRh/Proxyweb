@@ -17,11 +17,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     ca-certificates \
     perl \
-    chromium \
-    chromium-driver \
     libssl-dev \
     libffi-dev \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y --no-install-recommends chromium chromium-driver \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /root/.cache/*  # 清理 webdriver-manager 缓存
 
 # 安装 Python 依赖
 RUN pip install --no-cache-dir -r requirements.txt
