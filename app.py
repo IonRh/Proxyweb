@@ -111,6 +111,10 @@ def fetch_page():
     except Exception as e:
         logger.error(f"错误: {str(e)}")
         return jsonify({"error": str(e)}), 500
-
+@app.route('/', methods=['GET'])Add comment更多操作
+def index():
+    page_source="<h1>404</h1>"
+    return Response(page_source, mimetype='text/html')
+    
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=false, host='0.0.0.0', port=5000)
