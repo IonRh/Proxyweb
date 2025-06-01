@@ -1,36 +1,31 @@
-# 使用官方 Python 3.9 镜像作为基础镜像
+# 使用官方 Python 3.9 镜像作为基础镜像（支持多架构，包括 ARM）
 FROM python:3.9-slim
 
 # 设置工作目录
 WORKDIR /app
 
-# 复制应用代码
+# 复制应用代码和 requirements.txt
 COPY . .
 
-# 设置非交互式安装
+# 设置非交互式安装，优化构建速度
 ENV DEBIAN_FRONTEND=noninteractive
 
-# 安装系统依赖
+# 安装系统依赖，包括 Chromium 和 ChromeDriver
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     gnupg2 \
     unzip \
     ca-certificates \
     perl \
-    && rm -rf /var/lib/apt/lists/*
-
-# 安装 Chromium 和依赖
-RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     chromium-driver \
     && rm -rf /var/lib/apt/lists/*
 
 # 安装 Python 依赖
-COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 暴露端口
+# 暴露 FastAPI 应用的端口
 EXPOSE 5000
 
-# 使用 Gunicorn 运行 Flask 应用，优化 ARM
-CMD ["gunicorn", "--workers=2", "--timeout=60", "--graceful-timeout=30", "--bind=0.0.0.0:5000", "app:app"]
+# 使用 Uvicorn 运行 FastAPI 应用，优化 ARM 架构
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "2", "--timeout-keep-alive", "60"]
