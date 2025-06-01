@@ -7,12 +7,16 @@ WORKDIR /app
 # 复制应用代码
 COPY . .
 
+# 设置非交互式安装
+ENV DEBIAN_FRONTEND=noninteractive
+
 # 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     gnupg2 \
     unzip \
     ca-certificates \
+    perl \
     && rm -rf /var/lib/apt/lists/*
 
 # 安装 Chromium 和依赖
