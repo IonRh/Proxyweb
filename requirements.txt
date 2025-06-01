@@ -1,6 +1,6 @@
-gunicorn
-werkzeug
 fastapi
 uvicorn
-selenium-wire
-webdriver-manager
+selenium-wire>=5.1.0
+webdriver-manager>=4.0.2
+blinker>=1.4
+mitmproxy>=8.0.0
