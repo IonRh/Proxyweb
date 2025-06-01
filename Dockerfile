@@ -36,7 +36,9 @@ RUN ARCH=$(uname -m) && \
     mv chromedriver /usr/local/bin/ && \
     chmod +x /usr/local/bin/chromedriver && \
     rm chromedriver_linux64.zip && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    # 验证安装
+    chromium --version && chromedriver --version
 
 # 安装 Python 依赖
 COPY requirements.txt .
@@ -45,5 +47,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 暴露端口
 EXPOSE 5000
 
-# 使用 Gunicorn 运行 Flask 应用
-CMD ["gunicorn", "--workers=4", "--bind=0.0.0.0:5000", "app:app"]
+# 使用 Gunicorn 运行 Flask 应用，优化 ARM
+CMD ["gunicorn", "--workers=2", "--timeout=60", "--graceful-timeout=30", "--bind=0.0.0.0:5000", "app:app"]
