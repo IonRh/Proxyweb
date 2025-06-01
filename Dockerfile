@@ -10,7 +10,7 @@ COPY . .
 # 设置非交互式安装，优化构建速度
 ENV DEBIAN_FRONTEND=noninteractive
 
-# 安装系统依赖，包括 Chromium 和 ChromeDriver
+# 安装系统依赖，包括 Chromium、ChromeDriver 和 mitmproxy 所需的库
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     gnupg2 \
@@ -19,6 +19,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     perl \
     chromium \
     chromium-driver \
+    libssl-dev \
+    libffi-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # 安装 Python 依赖
