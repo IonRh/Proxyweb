@@ -8,6 +8,7 @@ import logging
 import random
 import platform
 import os
+import glob
 
 app = Flask(__name__)
 
@@ -38,24 +39,40 @@ def init_driver():
     chrome_options.add_argument("--disable-extensions")
     chrome_options.add_argument("--window-size=1920,1080")
 
-    # 检测架构并设置浏览器二进制文件
+    # 动态查找 Chromium 或 Chrome 可执行文件
     arch = platform.machine()
-    if arch != "x86_64":
-        # ARM 架构使用 Chromium
-        chrome_options.binary_location = "/usr/bin/chromium"
+    browser_binary = None
+    if arch == "x86_64":
+        browser_binary = "/usr/bin/google-chrome"
     else:
-        # amd64 使用 Google Chrome
-        chrome_options.binary_location = "/usr/bin/google-chrome"
+        # 查找 Chromium 可执行文件
+        possible_paths = ["/usr/bin/chromium", "/usr/lib/chromium-browser/chromium", "/usr/bin/chromium-browser"]
+        for path in possible_paths:
+            if os.path.exists(path):
+                browser_binary = path
+                break
+        if not browser_binary:
+            logger.error("未找到 Chromium 可执行文件")
+            raise Exception("未找到 Chromium 可执行文件")
 
-    driver = webdriver.Chrome(options=chrome_options)
-    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-    driver.execute_script("""
-        window.addEventListener('mousemove', function(e) {
-            window._mouseX = e.clientX;
-            window._mouseY = e.clientY;
-        });
-    """)
-    return driver
+    chrome_options.binary_location = browser_binary
+    logger.info(f"使用浏览器: {browser_binary}")
+
+    # 显式指定 ChromeDriver 路径
+    service = webdriver.chrome.service.Service('/usr/local/bin/chromedriver')
+    try:
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        driver.execute_script("""
+            window.addEventListener('mousemove', function(e) {
+                window._mouseX = e.clientX;
+                window._mouseY = e.clientY;
+            });
+        """)
+        return driver
+    except Exception as e:
+        logger.error(f"初始化 WebDriver 失败: {str(e)}")
+        raise
 
 @app.route('/fetch', methods=['GET'])
 def fetch_page():
