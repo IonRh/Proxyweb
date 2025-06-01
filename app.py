@@ -8,12 +8,19 @@ import logging
 import random
 import platform
 import os
+import pkg_resources
 
 app = Flask(__name__)
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# 记录依赖版本
+logger.info(f"Flask version: {pkg_resources.get_distribution('flask').version}")
+logger.info(f"Werkzeug version: {pkg_resources.get_distribution('werkzeug').version}")
+logger.info(f"Selenium version: {pkg_resources.get_distribution('selenium').version}")
+logger.info(f"Gunicorn version: {pkg_resources.get_distribution('gunicorn').version}")
 
 # 用户代理池
 USER_AGENTS = [
@@ -104,9 +111,6 @@ def fetch_page():
     except Exception as e:
         logger.error(f"错误: {str(e)}")
         return jsonify({"error": str(e)}), 500
-@app.route('/', methods=['GET'])
-def index():
-    page_source="<h1>404</h1>"
-    return Response(page_source, mimetype='text/html')
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
