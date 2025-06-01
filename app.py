@@ -8,7 +8,6 @@ import logging
 import random
 import platform
 import os
-import glob
 
 app = Flask(__name__)
 
@@ -39,27 +38,23 @@ def init_driver():
     chrome_options.add_argument("--disable-extensions")
     chrome_options.add_argument("--window-size=1920,1080")
 
-    # 动态查找 Chromium 或 Chrome 可执行文件
+    # 动态查找 Chromium 可执行文件
     arch = platform.machine()
     browser_binary = None
-    if arch == "x86_64":
-        browser_binary = "/usr/bin/google-chrome"
-    else:
-        # 查找 Chromium 可执行文件
-        possible_paths = ["/usr/bin/chromium", "/usr/lib/chromium-browser/chromium", "/usr/bin/chromium-browser"]
-        for path in possible_paths:
-            if os.path.exists(path):
-                browser_binary = path
-                break
-        if not browser_binary:
-            logger.error("未找到 Chromium 可执行文件")
-            raise Exception("未找到 Chromium 可执行文件")
+    possible_paths = ["/usr/bin/chromium", "/usr/lib/chromium-browser/chromium", "/usr/bin/chromium-browser"]
+    for path in possible_paths:
+        if os.path.exists(path):
+            browser_binary = path
+            break
+    if not browser_binary:
+        logger.error("未找到 Chromium 可执行文件")
+        raise Exception("未找到 Chromium 可执行文件")
 
     chrome_options.binary_location = browser_binary
     logger.info(f"使用浏览器: {browser_binary}")
 
-    # 显式指定 ChromeDriver 路径
-    service = webdriver.chrome.service.Service('/usr/local/bin/chromedriver')
+    # 使用 chromium-driver
+    service = webdriver.chrome.service.Service('/usr/bin/chromedriver')
     try:
         driver = webdriver.Chrome(service=service, options=chrome_options)
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
@@ -69,6 +64,7 @@ def init_driver():
                 window._mouseY = e.clientY;
             });
         """)
+        logger.info(f"WebDriver 初始化成功，浏览器版本: {driver.capabilities['browserVersion']}")
         return driver
     except Exception as e:
         logger.error(f"初始化 WebDriver 失败: {str(e)}")
@@ -108,6 +104,9 @@ def fetch_page():
     except Exception as e:
         logger.error(f"错误: {str(e)}")
         return jsonify({"error": str(e)}), 500
-
+@app.route('/', methods=['GET'])
+def index():
+    page_source="<h1>404</h1>"
+    return Response(page_source, mimetype='text/html')
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
