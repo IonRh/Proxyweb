@@ -1,22 +1,22 @@
-from flask import Flask, request, jsonify, Response
+import asyncio
+import logging
+import time
+from fastapi import FastAPI, HTTPException
+from starlette.responses import HTMLResponse
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
-import logging
-import time
-import atexit
-from threading import Lock
 
-app = Flask(__name__)
+app = FastAPI()
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 全局 WebDriver 实例和线程锁
+# 全局 WebDriver 实例和异步锁
 driver = None
-driver_lock = Lock()
+driver_lock = asyncio.Lock()
 
 def init_driver():
     """初始化 Chrome 浏览器，优化反爬设置"""
@@ -35,10 +35,10 @@ def init_driver():
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     return driver
 
-def cleanup_driver():
+async def cleanup_driver():
     """清理 WebDriver 资源"""
     global driver
-    with driver_lock:
+    async with driver_lock:
         if driver is not None:
             driver.quit()
             logger.info("WebDriver 已关闭")
@@ -46,38 +46,41 @@ def cleanup_driver():
 
 # 在应用启动时初始化 WebDriver
 driver = init_driver()
-# 注册清理函数，确保应用关闭时释放资源
-atexit.register(cleanup_driver)
 
-@app.route('/fetch', methods=['GET'])
-def fetch_page():
+# 注册清理函数，确保应用关闭时释放资源
+@app.on_event("shutdown")
+async def shutdown_event():
+    await cleanup_driver()
+
+@app.get("/fetch")
+async def fetch_page(url: str | None = None):
     """处理 GET 请求，拼接 URL 并返回页面内容"""
     global driver
     try:
-        url = request.args.get('url')
         if not url:
-            return jsonify({"error": "URL 参数缺失"}), 400
+            raise HTTPException(status_code=400, detail="URL 参数缺失")
 
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
 
         logger.info(f"正在访问: {url}")
-        with driver_lock:
+        async with driver_lock:
             driver.get(url)
             time.sleep(2)  # 视网站动态加载时间调整
             page_source = driver.page_source
 
-        return Response(page_source, mimetype='text/html')
+        return HTMLResponse(content=page_source)
 
     except Exception as e:
         logger.error(f"错误: {str(e)}")
-        with driver_lock:
+        async with driver_lock:
             try:
                 driver.quit()
             except:
                 pass
             driver = init_driver()
-        return jsonify({"error": str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=5000)
