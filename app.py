@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 from dataclasses import dataclass
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, HTMLResponse
 import undetected_chromedriver as uc
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
@@ -254,6 +254,28 @@ def extract_text_content(html_content: str) -> str:
         logger.error(f"文本提取失败: {str(e)}")
         return html_content
 
+def clean_html_content(html_content: str) -> str:
+    """清理HTML内容，移除不必要的脚本和样式，但保留结构"""
+    try:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        
+        # 移除危险的脚本和样式标签
+        for script in soup(["script", "noscript"]):
+            script.decompose()
+            
+        # 移除内联事件处理器
+        for tag in soup.find_all():
+            if tag.attrs:
+                # 移除所有 on* 事件属性
+                attrs_to_remove = [attr for attr in tag.attrs if attr.startswith('on')]
+                for attr in attrs_to_remove:
+                    del tag.attrs[attr]
+        
+        return str(soup)
+    except Exception as e:
+        logger.error(f"HTML清理失败: {str(e)}")
+        return html_content
+
 # 创建全局连接池实例
 driver_pool = WebDriverPool(pool_size=1)
 
@@ -314,6 +336,72 @@ async def fetch_page_text(url: Optional[str] = None, wait_time: int = 5):
                 text_content = extract_text_content(final_source)
                 logger.info(f"成功获取页面内容，文本长度: {len(text_content)}")
                 return text_content
+                
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"页面访问错误: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"页面访问失败: {str(e)}")
+                
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取 WebDriver 失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"服务器错误: {str(e)}")
+
+@app.get("/fetch-html", response_class=HTMLResponse)
+async def fetch_page_html(url: Optional[str] = None, wait_time: int = 5, clean: bool = True):
+    """获取页面HTML内容，支持 Cloudflare 等防护绕过
+    
+    Args:
+        url: 目标URL
+        wait_time: 页面加载等待时间（秒）
+        clean: 是否清理HTML内容（移除脚本等危险元素），默认为True
+    """
+    if not url:
+        raise HTTPException(status_code=400, detail="URL 参数缺失")
+    if not url.startswith(('http://', 'https://')):
+        url = 'https://' + url
+
+    logger.info(f"正在获取HTML: {url}, 等待时间: {wait_time}秒, 清理模式: {clean}")
+    
+    try:
+        async with driver_pool.get_driver() as driver:
+            try:
+                driver.get(url)
+                
+                if wait_time > 0:
+                    logger.info(f"等待 {wait_time} 秒以确保页面加载...")
+                    await asyncio.sleep(wait_time)
+                
+                # 等待主要内容加载
+                try:
+                    WebDriverWait(driver, 10).until(
+                        EC.any_of(
+                            EC.presence_of_element_located((By.TAG_NAME, "body")),
+                            EC.presence_of_element_located((By.TAG_NAME, "main")),
+                            EC.presence_of_element_located((By.CLASS_NAME, "content"))
+                        )
+                    )
+                except:
+                    pass
+                
+                final_source = driver.page_source
+                # 在提取页面源码后立即归还 WebDriver
+                await driver_pool.release_driver(driver)
+                
+                if any(keyword in final_source.lower() for keyword in ['just a moment', 'checking your browser']):
+                    raise HTTPException(status_code=403, detail="网站防护验证失败")
+                
+                # 根据clean参数决定是否清理HTML
+                if clean:
+                    html_content = clean_html_content(final_source)
+                    logger.info(f"成功获取并清理页面HTML，长度: {len(html_content)}")
+                else:
+                    html_content = final_source
+                    logger.info(f"成功获取原始页面HTML，长度: {len(html_content)}")
+                
+                return HTMLResponse(content=html_content)
                 
             except HTTPException:
                 raise
