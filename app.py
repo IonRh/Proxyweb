@@ -277,7 +277,7 @@ def clean_html_content(html_content: str) -> str:
         return html_content
 
 # 创建全局连接池实例
-driver_pool = WebDriverPool(pool_size=4)
+driver_pool = WebDriverPool(pool_size=1)
 
 @app.on_event("startup")
 async def startup_event():
